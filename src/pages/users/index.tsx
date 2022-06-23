@@ -15,21 +15,38 @@ import {
     Tr, 
     useBreakpointValue 
 } from "@chakra-ui/react";
+import { GetServerSideProps } from "next";
 import Link from "next/link";
+import { useState } from "react";
 import { RiAddLine, RiPencilLine } from "react-icons/ri";
 import { Header } from "../../components/Header";
 import { Pagination } from "../../components/Pagination";
 import { Sidebar } from "../../components/Sidebar";
-import { useUsers } from "../../services/hooks/useUsers";
+import { api } from "../../services/api";
+import { getUsers, useUsers } from "../../services/hooks/useUsers";
+import { queryClient } from "../../services/queryClient";
 
 export default function UserList() {
 
-    const {data, isLoading, isFetching, error} = useUsers()
+    const [page, setPage] = useState(1);
+    const { data, isLoading, isFetching, error } = useUsers(page, {
+        initialData: users,
+    })
 
     const showInLarge = useBreakpointValue({
         base: false,
-        lg: true
+        lg: true,
     })
+
+    async function handlePrefetchUser(userId: string) {
+        await queryClient.prefetchQuery(['user', userId], async () => {
+                const response = await api.get(`users/${userId}`)
+
+                return response.data;
+            }, {
+                staleTime: 1000 * 60 * 10, // 10 minutes
+            })
+    }
 
     return (
         <Box>
@@ -94,7 +111,7 @@ export default function UserList() {
                                     </Thead>
                                     <Tbody>
                                         {
-                                            data.map(user => (
+                                            users.map(user => (
                                                 <Tr key={user.id}>
                                                     <Td px={["4","4","6"]}>
                                                         <Checkbox colorScheme="pink" />
@@ -131,7 +148,11 @@ export default function UserList() {
                                     </Tbody>
                                 </Table>
 
-                                <Pagination />
+                                <Pagination
+                                    totalCountOfRegisters={totalCount}
+                                    currentPage={page}
+                                    onPageChange={setPage}
+                                />
                             </>
                         )
                     }
@@ -139,4 +160,15 @@ export default function UserList() {
             </Flex>
         </Box>
     )
+}
+
+export const getServerSideProps: GetServerSideProps = async () => {
+    const { users, totalCount } = await getUsers(1)
+  
+    return {
+        props: {
+            users,
+            totalCount
+        }
+    }
 }
